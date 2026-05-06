@@ -246,7 +246,20 @@ int kvs_hash_exist(kvs_hash_t *hash, char *key) {
 	if (!value) return 1;
 
 	return 0;
-	
+
+}
+
+void kvs_hash_foreach(kvs_hash_t *hash, kvs_visit_func visitor, void *userdata) {
+	if (!hash || !visitor) return;
+
+	int i;
+	for (i = 0; i < hash->max_slots; i++) {
+		hashnode_t *node = hash->nodes[i];
+		while (node != NULL) {
+			visitor(node->key, node->value, userdata);
+			node = node->next;
+		}
+	}
 }
 
 #if 0

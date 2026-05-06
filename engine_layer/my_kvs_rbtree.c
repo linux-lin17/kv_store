@@ -550,4 +550,18 @@ int kvs_rbtree_exist(kvs_rbtree_t *inst, char *key) {
 	return 0;
 }
 
+static void _rbtree_foreach_node(rbtree *T, rbtree_node *node,
+                                  kvs_visit_func visitor, void *userdata) {
+	if (node != T->nil) {
+		_rbtree_foreach_node(T, node->left, visitor, userdata);
+		visitor(node->key, (const char *)node->value, userdata);
+		_rbtree_foreach_node(T, node->right, visitor, userdata);
+	}
+}
+
+void kvs_rbtree_foreach(kvs_rbtree_t *inst, kvs_visit_func visitor, void *userdata) {
+	if (!inst || !visitor) return;
+	_rbtree_foreach_node(inst, inst->root, visitor, userdata);
+}
+
 

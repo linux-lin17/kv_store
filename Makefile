@@ -2,7 +2,7 @@
 CC = gcc
 
 # 编译选项
-CFLAGS = -Wall -g -I./include -I./NtyCo/core/
+CFLAGS = -Wall -g -I./include -I./NtyCo/core/ -I./persist_layer
 
 # 链接库路径和选项
 LDFLAGS = -L./NtyCo/
@@ -17,7 +17,10 @@ COMMON_SRCS = network_layer/my_ntyco.c \
               engine_layer/my_kvs_array.c \
 			  engine_layer/my_kvs_rbtree.c \
 			  engine_layer/my_kvs_hash.c \
-			  engine_layer/my_kvs_skiptable.c
+			  engine_layer/my_kvs_skiptable.c \
+			  protocol_layer/my_protocol_parsing.c \
+			  persist_layer/my_wal.c \
+			  persist_layer/my_snapshot.c
 
 # 2. kvstore 服务端专属代码（公共代码 + kvstore.c）
 KV_SRCS = core_layer/kvstore.c $(COMMON_SRCS)

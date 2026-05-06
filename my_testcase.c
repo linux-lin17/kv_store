@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#define BEGIN_TEST		1
 
 #define MAX_MSG_LENGTH      1024
 
@@ -63,7 +64,11 @@ void testcase(int connfd, char *msg, char *pattern, char *casename) {
 	recv_msg(connfd, result, MAX_MSG_LENGTH);
 
 	if (strcmp(result, pattern) == 0) {
+
+#if BEGIN_TEST
 		printf("==> PASS ->  %s\n", casename);
+#endif
+
 	} else {
 		printf("==> FAILED -> %s, '%s' != '%s' \n", casename, result, pattern);
 		exit(1);
@@ -235,8 +240,110 @@ void skiptable_testcase(int connfd){
 	testcase(connfd, "STMOD Teacher KING", "NO EXIST\r\n", "STMOD-K-Teacher");
 	testcase(connfd, "STEXIST Teacher", "NO EXIST\r\n", "STEXIST-Teacher");
 
+}
+
+void skiptable_testcase_1w(int connfd) {
+
+	printf("skiptable_testcase_1w \n");
+	int count = 10000;
+	int i = 0;
+
+	struct timeval tv_begin;
+	gettimeofday(&tv_begin, NULL);
+
+	for (i = 0;i < count;i ++) {
+		testcase(connfd, "STSET Teacher King", "OK\r\n", "STSET-Teacher");
+		testcase(connfd, "STGET Teacher", "King\r\n", "STGET-King-Teacher");
+		testcase(connfd, "STMOD Teacher Darren", "OK\r\n", "STMOD-D-Teacher");
+		testcase(connfd, "STGET Teacher", "Darren\r\n", "STGET-Darren-Teacher");
+		testcase(connfd, "STEXIST Teacher", "EXIST\r\n", "STEXIST-Teacher");
+		testcase(connfd, "STDEL Teacher", "OK\r\n", "STDEL-Teacher");
+		testcase(connfd, "STGET Teacher", "NO EXIST\r\n", "STGET-K-Teacher");
+		testcase(connfd, "STMOD Teacher KING", "NO EXIST\r\n", "STMOD-K-Teacher");
+		testcase(connfd, "STEXIST Teacher", "NO EXIST\r\n", "STEXIST-Teacher");
+
+	}
+
+	struct timeval tv_end;
+	gettimeofday(&tv_end, NULL);
+
+	int time_used = TIME_SUB_MS(tv_end, tv_begin); // ms
+
+	printf("skiptable testcase --> time_used: %d, qps: %d\n", time_used, 90000 * 1000 / time_used);
+	
+}
+
+
+void test_wal_1(int connfd) {
+
+	struct timeval tv_begin;
+	gettimeofday(&tv_begin, NULL);
+
+    int count = 30000;
+    for (int i = 0; i < count; i++) {
+        char cmd[256];
+        char expected[256];
+        char name[256];
+
+        // STSET Teacher0 King0, STSET Teacher1 King1, ...
+        snprintf(cmd, sizeof(cmd), "STSET Teacher%d King%d", i, i);
+        snprintf(name, sizeof(name), "STSET-Teacher%d", i);
+        testcase(connfd, cmd, "OK\r\n", name);
+
+        // STGET Teacher0 → King0, STGET Teacher1 → King1, ...
+        snprintf(cmd, sizeof(cmd), "STGET Teacher%d", i);
+        snprintf(expected, sizeof(expected), "King%d\r\n", i);
+        snprintf(name, sizeof(name), "STGET-Teacher%d", i);
+        testcase(connfd, cmd, expected, name);
+
+        // STMOD Teacher0 Darren0, ...
+        snprintf(cmd, sizeof(cmd), "STMOD Teacher%d Darren%d", i, i);
+        snprintf(name, sizeof(name), "STMOD-Teacher%d", i);
+        testcase(connfd, cmd, "OK\r\n", name);
+
+        // HSET Teacher0 King0, ...
+        snprintf(cmd, sizeof(cmd), "HSET Teacher%d King%d", i, i);
+        snprintf(name, sizeof(name), "HSET-Teacher%d", i);
+        testcase(connfd, cmd, "OK\r\n", name);
+
+        // HGET Teacher0 → King0, ...
+        snprintf(cmd, sizeof(cmd), "HGET Teacher%d", i);
+        snprintf(expected, sizeof(expected), "King%d\r\n", i);
+        snprintf(name, sizeof(name), "HGET-Teacher%d", i);
+        testcase(connfd, cmd, expected, name);
+
+        // HMOD Teacher0 Darren0, ...
+        snprintf(cmd, sizeof(cmd), "HMOD Teacher%d Darren%d", i, i);
+        snprintf(name, sizeof(name), "HMOD-Teacher%d", i);
+        testcase(connfd, cmd, "OK\r\n", name);
+    }
+
+	struct timeval tv_end;
+	gettimeofday(&tv_end, NULL);
+
+	int time_used = TIME_SUB_MS(tv_end, tv_begin); // ms
+
+	printf("skiptable testcase --> time_used: %d, qps: %d\n", time_used, 180000 * 1000 / time_used);
+}
+
+void test_wal_2(int connfd) {
+
+	testcase(connfd, "RSET Teacher King", "OK\r\n", "RSET-Teacher");
+	testcase(connfd, "RGET Teacher", "King\r\n", "RGET-King-Teacher");
+	testcase(connfd, "RMOD Teacher Darren", "OK\r\n", "RMOD-D-Teacher");
 
 }
+
+void test_wal_3(int connfd) {
+
+	//testcase(connfd, "RGET Teacher", "Darren\r\n", "RGET-Darren-Teacher");
+	testcase(connfd, "STGET Teacher1024", "Darren1024\r\n", "STGET-Darren-Teacher[1024]");
+	testcase(connfd, "HGET Teacher5705", "Darren5705\r\n", "HGET-Darren-Teacher[5705]");
+}
+
+
+
+
 
 // testcase 192.168.47.128 2000 
 int main(int argc, char *argv[]) {
@@ -262,7 +369,17 @@ int main(int argc, char *argv[]) {
 	} else if (mode == 3) {
 		hash_testcase(connfd);
 	} else if (mode == 4) {
+		skiptable_testcase_1w(connfd);
+	} else if (mode == 5) {
 		skiptable_testcase(connfd);
+	} else if (mode == 6) {
+		hash_testcase(connfd);
+	} else if (mode == 7) {
+		test_wal_1(connfd);
+	} else if (mode == 8) {
+		test_wal_2(connfd);
+	} else if (mode == 9) {
+		test_wal_3(connfd);
 	}
 
 	return 0;

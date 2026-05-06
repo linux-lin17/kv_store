@@ -1,6 +1,9 @@
 
 
 #include "kvstore.h"
+#include "my_persist.h"
+
+#include "my_protocol_parsing.h"
 
 #if ENABLE_ARRAY
 extern kvs_array_t global_array;
@@ -65,7 +68,7 @@ const char *command[] = {
 	"STSET", "STGET", "STDEL", "STMOD", "STEXIST"
 };
 
-
+#if 0
 
 int kvs_split_token(char *msg, char *tokens[]) {
 
@@ -83,7 +86,17 @@ int kvs_split_token(char *msg, char *tokens[]) {
 
 	return idx;
 }
+#endif
 
+static void wal_log(char *tokens[]) {
+	char buf[1024] = {0};
+	if (tokens[2]) {
+		snprintf(buf, sizeof(buf), "%s %s %s", tokens[0], tokens[1], tokens[2]);
+	} else {
+		snprintf(buf, sizeof(buf), "%s %s", tokens[0], tokens[1]);
+	}
+	persist_append_wal(buf);
+}
 
 int kvs_filter_protocol(char **tokens, int count, char *response) {
 
@@ -101,6 +114,11 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 	char *key = tokens[1];
 	char *value = tokens[2];
 
+	// 写操作（SET/DEL/MOD）需要加锁，防止与快照线程并发
+	int op = cmd % 5;
+	int is_write = (op == KVS_CMD_SET || op == KVS_CMD_DEL || op == KVS_CMD_MOD);
+	if (is_write) persist_lock();
+
     switch(cmd) {
 #if ENABLE_ARRAY
 	case KVS_CMD_SET:
@@ -109,10 +127,11 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
 		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "EXIST\r\n");
-		} 
-		
+		}
+
 		break;
 	case KVS_CMD_GET:
 		char *result = kvs_array_get(&global_array, key);
@@ -129,6 +148,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -140,6 +160,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -165,10 +186,11 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
 		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "EXIST\r\n");
-		} 
-		
+		}
+
 		break;
 	case KVS_CMD_RGET: {
 		char *result = kvs_rbtree_get(&global_rbtree, key);
@@ -185,6 +207,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -195,6 +218,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -210,6 +234,65 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 #endif
 
 
+#if ENABLE_HASH
+
+	case KVS_CMD_HSET:
+		ret = kvs_hash_set(&global_hash ,key, value);
+		if (ret < 0) {
+			length = sprintf(response, "ERROR\r\n");
+		} else if (ret == 0) {
+			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
+		} else {
+			length = sprintf(response, "EXIST\r\n");
+		}
+
+		break;
+	case KVS_CMD_HGET: {
+		char *result = kvs_hash_get(&global_hash, key);
+		if (result == NULL) {
+			length = sprintf(response, "NO EXIST\r\n");
+		} else {
+			length = sprintf(response, "%s\r\n", result);
+		}
+		break;
+	}
+	case KVS_CMD_HDEL:
+		ret = kvs_hash_del(&global_hash ,key);
+		if (ret < 0) {
+			length = sprintf(response, "ERROR\r\n");
+ 		} else if (ret == 0) {
+			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
+		} else {
+			length = sprintf(response, "NO EXIST\r\n");
+		}
+		break;
+	case KVS_CMD_HMOD:
+		ret = kvs_hash_mod(&global_hash ,key, value);
+		if (ret < 0) {
+			length = sprintf(response, "ERROR\r\n");
+ 		} else if (ret == 0) {
+			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
+		} else {
+			length = sprintf(response, "NO EXIST\r\n");
+		}
+		break;
+	case KVS_CMD_HEXIST:
+		ret = kvs_hash_exist(&global_hash ,key);
+		if (ret == 0) {
+			length = sprintf(response, "EXIST\r\n");
+		} else {
+			length = sprintf(response, "NO EXIST\r\n");
+		}
+		break;
+
+
+
+#endif
+
+
 #if ENABLE_SKIPTABLE
 
 	case KVS_CMD_STSET:
@@ -218,10 +301,11 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
 		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "EXIST\r\n");
-		} 
-		
+		}
+
 		break;
 	case KVS_CMD_STGET: {
 		char *result = kvs_skiptable_get(&global_skiptable, key);
@@ -238,6 +322,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -248,6 +333,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
+			wal_log(tokens);
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -261,13 +347,13 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 		}
 		break;
 
-
-
 #endif
 
 	default:
 		assert(0);
 	}
+
+	if (is_write) persist_unlock();
 
     return length;
 }
@@ -351,6 +437,8 @@ int main(int argc, char* argv[]) {
 
     init_kvengine();
 
+    persist_init(kvs_protocol);
+
 #if (NETWORK_SELECT == NETWORK_REACTOR)
 	reactor_start(port, kvs_protocol);  //
 #elif (NETWORK_SELECT == NETWORK_PROACTOR)
@@ -358,6 +446,8 @@ int main(int argc, char* argv[]) {
 #elif (NETWORK_SELECT == NETWORK_NTYCO)
 	ntyco_start(port, kvs_protocol);
 #endif
+
+    persist_close();
 
     dest_kvengine();
 

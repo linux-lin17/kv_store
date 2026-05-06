@@ -352,6 +352,17 @@ int kvs_skiptable_exist(kvs_skiptable_t *skiptable, char *key) {
     }
 }
 
+void kvs_skiptable_foreach(kvs_skiptable_t *skiptable, kvs_visit_func visitor, void *userdata) {
+    if (!skiptable || !visitor) return;
+
+    // 第0层包含所有节点，沿着 forward[0] 遍历即可
+    skiptable_node_t *node = skiptable->header->forward[0];
+    while (node != NULL) {
+        visitor(node->key, node->value, userdata);
+        node = node->forward[0];
+    }
+}
+
 
 #if BEGIN_TEST
 

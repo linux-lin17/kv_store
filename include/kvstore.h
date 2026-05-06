@@ -23,6 +23,9 @@
 void *kvs_malloc(size_t size);
 void kvs_free(void *ptr);
 
+// 遍历引擎 K-V 对的回调：每发现一个 key-value 就调用一次
+typedef void (*kvs_visit_func)(const char *key, const char *value, void *userdata);
+
 typedef int (*msg_handler)(char *msg, int length, char *response);
 
 extern int reactor_start(unsigned short port, msg_handler handler);
@@ -54,6 +57,8 @@ char* kvs_array_get(kvs_array_t *inst, char *key);
 int kvs_array_del(kvs_array_t *inst, char *key);
 int kvs_array_mod(kvs_array_t *inst, char *key, char *value);
 int kvs_array_exist(kvs_array_t *inst, char *key);
+
+void kvs_array_foreach(kvs_array_t *inst, kvs_visit_func visitor, void *userdata);
 
 
 #endif
@@ -97,6 +102,8 @@ char* kvs_rbtree_get(kvs_rbtree_t *inst, char *key);
 int kvs_rbtree_del(kvs_rbtree_t *inst, char *key);
 int kvs_rbtree_mod(kvs_rbtree_t *inst, char *key, char *value);
 int kvs_rbtree_exist(kvs_rbtree_t *inst, char *key);
+
+void kvs_rbtree_foreach(kvs_rbtree_t *inst, kvs_visit_func visitor, void *userdata);
 
 #endif
 
@@ -142,6 +149,8 @@ int kvs_hash_mod(kvs_hash_t *hash, char *key, char *value);
 int kvs_hash_del(kvs_hash_t *hash, char *key);
 int kvs_hash_exist(kvs_hash_t *hash, char *key);
 
+void kvs_hash_foreach(kvs_hash_t *hash, kvs_visit_func visitor, void *userdata);
+
 
 #endif
 
@@ -171,6 +180,8 @@ char * kvs_skiptable_get(kvs_skiptable_t *skiptable, char *key);
 int kvs_skiptable_mod(kvs_skiptable_t *skiptable, char *key, char *value);
 int kvs_skiptable_del(kvs_skiptable_t *skiptable, char *key);
 int kvs_skiptable_exist(kvs_skiptable_t *skiptable, char *key);
+
+void kvs_skiptable_foreach(kvs_skiptable_t *skiptable, kvs_visit_func visitor, void *userdata);
 
 
 #endif 

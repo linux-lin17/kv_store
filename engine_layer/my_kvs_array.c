@@ -177,10 +177,22 @@ int kvs_array_mod(kvs_array_t *inst, char *key, char *value) {
 int kvs_array_exist(kvs_array_t *inst, char *key) {
 
 	if (!inst || !key) return -1;
-	
+
 	char *str = kvs_array_get(inst, key);
 	if (!str) {
-		return 1; // 
+		return 1; //
 	}
 	return 0;
+}
+
+void kvs_array_foreach(kvs_array_t *inst, kvs_visit_func visitor, void *userdata) {
+	if (!inst || !visitor) return;
+
+	int i;
+	for (i = 0; i < inst->total; i++) {
+		if (inst->table[i].key == NULL) {
+			continue;  // 跳过已删除的空位
+		}
+		visitor(inst->table[i].key, inst->table[i].value, userdata);
+	}
 }
