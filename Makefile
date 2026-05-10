@@ -6,27 +6,29 @@ CFLAGS = -Wall -g -I./include -I./NtyCo/core/ -I./persist_layer
 
 # 链接库路径和选项
 LDFLAGS = -L./NtyCo/
-LDLIBS = -lntyco -lpthread -luring -ldl
+LDLIBS = -lntyco -lpthread -luring -ldl -ljemalloc
+
 
 # ================= 核心改动在这里 =================
 
-# 1. 抽离出“公共代码”（不带 main 函数的底层组件）
+# 1. 抽离出"公共代码"（不带 main 函数的底层组件）
 COMMON_SRCS = network_layer/my_ntyco.c \
               network_layer/my_proactor.c \
               network_layer/my_reactor.c \
               engine_layer/my_kvs_array.c \
-			  engine_layer/my_kvs_rbtree.c \
-			  engine_layer/my_kvs_hash.c \
-			  engine_layer/my_kvs_skiptable.c \
-			  protocol_layer/my_protocol_parsing.c \
-			  persist_layer/my_wal.c \
-			  persist_layer/my_snapshot.c
+              engine_layer/my_kvs_rbtree.c \
+              engine_layer/my_kvs_hash.c \
+              engine_layer/my_kvs_skiptable.c \
+              protocol_layer/my_protocol_parsing.c \
+              persist_layer/my_wal.c \
+              persist_layer/my_snapshot.c \
+              memory_layer/mempool.c
 
 # 2. kvstore 服务端专属代码（公共代码 + kvstore.c）
 KV_SRCS = core_layer/kvstore.c $(COMMON_SRCS)
 KV_OBJS = $(patsubst %.c, build/%.o, $(KV_SRCS))
 
-# 3. testcase 测试专属代码（通常测试客户端只需要编译自己，如果需要依赖底层代码，也可以像上面那样加上 $(COMMON_SRCS)）
+# 3. testcase 测试专属代码
 TEST_SRCS = my_testcase.c
 TEST_OBJS = $(patsubst %.c, build/%.o, $(TEST_SRCS))
 
@@ -57,7 +59,7 @@ build/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# 清理工作：记得把两个可执行文件都删掉
+# 清理
 clean:
 	rm -rf build $(TARGET) $(TEST_TARGET)
 	$(MAKE) -C ./NtyCo clean

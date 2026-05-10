@@ -17,10 +17,10 @@ SkipList_t global_skiptable;
 */
 
 skiptable_node_t* createNode(int level, char* key, char* value) {
-    skiptable_node_t* newNode = malloc(sizeof(skiptable_node_t));
+    skiptable_node_t* newNode = kvs_malloc(sizeof(skiptable_node_t));
     if (newNode == NULL) return NULL;
 
-    newNode->forward = malloc((level + 1) * sizeof(skiptable_node_t*));
+    newNode->forward = kvs_malloc((level + 1) * sizeof(skiptable_node_t*));
 
     if (key != NULL) {
         newNode->key = kvs_malloc(strlen(key) + 1);
@@ -43,14 +43,14 @@ skiptable_node_t* createNode(int level, char* key, char* value) {
 fail:
     kvs_free(newNode->key);
     kvs_free(newNode->value);
-    free(newNode->forward);
-    free(newNode);
+    kvs_free(newNode->forward);
+    kvs_free(newNode);
     return NULL;
 }
 
 
 SkipList_t* createSkipList() {
-    SkipList_t* skipList = (SkipList_t*)malloc(sizeof(SkipList_t));
+    SkipList_t* skipList = (SkipList_t*)kvs_malloc(sizeof(SkipList_t));
     skipList->level = 0;
     
     skipList->header = createNode(MAX_LEVEL, NULL, NULL);
@@ -173,16 +173,16 @@ void kvs_skiptable_destory(kvs_skiptable_t *skiptable) {
         kvs_free(tmp->key);      // kvs_malloc 配 kvs_free
         kvs_free(tmp->value);    
 
-        free(tmp->forward);   // 先释放 forward 数组
-        free(tmp);            // 再释放节点本身
+        kvs_free(tmp->forward);
+        kvs_free(tmp);
     }
 
     // 释放 header
     kvs_free(skiptable->header->key);      // kvs_malloc 配 kvs_free
     kvs_free(skiptable->header->value); 
 
-    free(skiptable->header->forward);
-    free(skiptable->header);
+    kvs_free(skiptable->header->forward);
+    kvs_free(skiptable->header);
 
     skiptable->level = 0;
     skiptable->header = NULL;
@@ -312,8 +312,8 @@ int kvs_skiptable_del(kvs_skiptable_t* skipList, char* key) {
     kvs_free(current->key);
     kvs_free(current->value);
 
-    free(current->forward);
-    free(current);
+    kvs_free(current->forward);
+    kvs_free(current);
 
     // 收缩：如果顶层变空了，level 下调
     while (skipList->level > 0 && skipList->header->forward[skipList->level] == NULL)

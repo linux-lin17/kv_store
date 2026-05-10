@@ -97,7 +97,11 @@ void kvs_hash_destory(kvs_hash_t *hash) {
 			hashnode_t *tmp = node;
 			node = node->next;
 			hash->nodes[i] = node;
-			
+
+#if ENABLE_KEY_POINTER
+			kvs_free(tmp->key);
+			kvs_free(tmp->value);
+#endif
 			kvs_free(tmp);
 			
 		}

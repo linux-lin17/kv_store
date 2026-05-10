@@ -1,7 +1,13 @@
 
 
+
 #include "kvstore.h"
 #include "my_persist.h"
+
+#if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
+#include "mempool.h"
+#endif
+
 
 #include "my_protocol_parsing.h"
 
@@ -23,11 +29,23 @@ extern kvs_skiptable_t global_skiptable;
 
 
 void *kvs_malloc(size_t size) {
+#if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
+	return mempool_alloc(size);
+#elif MEM_ALLOC_MODE == MEM_ALLOC_RAW
 	return malloc(size);
+#elif MEM_ALLOC_MODE == MEM_ALLOC_JEMALLOC
+	return malloc(size);
+#endif
 }
 
 void kvs_free(void *ptr) {
-	return free(ptr);
+#if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
+	mempool_free(ptr);
+#elif MEM_ALLOC_MODE == MEM_ALLOC_RAW
+	free(ptr);
+#elif MEM_ALLOC_MODE == MEM_ALLOC_JEMALLOC
+	free(ptr);
+#endif
 }
 enum {
 	KVS_CMD_START = 0,
@@ -55,7 +73,7 @@ enum {
 	KVS_CMD_STDEL,
 	KVS_CMD_STMOD,
 	KVS_CMD_STEXIST,
-	
+
 	KVS_CMD_COUNT,
 };
 
@@ -76,10 +94,10 @@ int kvs_split_token(char *msg, char *tokens[]) {
 
 	int idx = 0;
 	char *token = strtok(msg, " ");
-	
+
 	while (token != NULL) {
 		//printf("idx: %d, %s\n", idx, token);
-		
+
 		tokens[idx ++] = token;
 		token = strtok(NULL, " ");
 	}
@@ -89,6 +107,7 @@ int kvs_split_token(char *msg, char *tokens[]) {
 #endif
 
 static void wal_log(char *tokens[]) {
+	if (PERSIST_MODE == PERSIST_MODE_DISABLE) return;
 	char buf[1024] = {0};
 	if (tokens[2]) {
 		snprintf(buf, sizeof(buf), "%s %s %s", tokens[0], tokens[1], tokens[2]);
@@ -106,7 +125,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 	for (cmd = KVS_CMD_START; cmd < KVS_CMD_COUNT; cmd ++) {
 		if (strcmp(tokens[0], command[cmd]) == 0) {
 			break;
-		} 
+		}
 	}
 
     int length = 0;
@@ -117,7 +136,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 	// 写操作（SET/DEL/MOD）需要加锁，防止与快照线程并发
 	int op = cmd % 5;
 	int is_write = (op == KVS_CMD_SET || op == KVS_CMD_DEL || op == KVS_CMD_MOD);
-	if (is_write) persist_lock();
+	if (PERSIST_MODE == PERSIST_MODE_ENABLE && is_write) persist_lock();
 
     switch(cmd) {
 #if ENABLE_ARRAY
@@ -127,7 +146,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
 		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "EXIST\r\n");
 		}
@@ -141,14 +162,16 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "%s\r\n", result);
 		}
 		break;
-	
+
 	case KVS_CMD_DEL:
 		ret = kvs_array_del(&global_array ,key);
 		if (ret < 0) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -160,7 +183,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -174,9 +199,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
 		break;
-	
-		
-#endif  
+
+
+#endif
 
 	// rbtree
 #if ENABLE_RBTREE
@@ -186,7 +211,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
 		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "EXIST\r\n");
 		}
@@ -207,7 +234,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -218,7 +247,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -242,7 +273,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
 		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "EXIST\r\n");
 		}
@@ -263,7 +296,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -274,7 +309,9 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
+
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -301,7 +338,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
 		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
 		} else {
 			length = sprintf(response, "EXIST\r\n");
 		}
@@ -322,7 +359,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -333,7 +370,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 			length = sprintf(response, "ERROR\r\n");
  		} else if (ret == 0) {
 			length = sprintf(response, "OK\r\n");
-			wal_log(tokens);
+			if (PERSIST_MODE == PERSIST_MODE_ENABLE) wal_log(tokens);
 		} else {
 			length = sprintf(response, "NO EXIST\r\n");
 		}
@@ -353,7 +390,7 @@ int kvs_filter_protocol(char **tokens, int count, char *response) {
 		assert(0);
 	}
 
-	if (is_write) persist_unlock();
+	if (PERSIST_MODE == PERSIST_MODE_ENABLE && is_write) persist_unlock();
 
     return length;
 }
@@ -423,7 +460,7 @@ void dest_kvengine(void) {
 
 #if ENABLE_SKIPTABLE
 	kvs_skiptable_destory(&global_skiptable);
-#endif 
+#endif
 
 }
 
@@ -435,9 +472,20 @@ int main(int argc, char* argv[]) {
 
     int port = atoi(argv[1]);
 
+#if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
+    mempool_init();
+#endif
     init_kvengine();
 
-    persist_init(kvs_protocol);
+#if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
+    printf("memory allocator: MEM_ALLOC_MEMPOOL\n");
+#elif MEM_ALLOC_MODE == MEM_ALLOC_RAW
+    printf("memory allocator: MEM_ALLOC_RAW\n");
+#elif MEM_ALLOC_MODE == MEM_ALLOC_JEMALLOC
+    printf("memory allocator: MEM_ALLOC_JEMALLOC\n");
+#endif
+
+	if (PERSIST_MODE == PERSIST_MODE_ENABLE) persist_init(kvs_protocol);
 
 #if (NETWORK_SELECT == NETWORK_REACTOR)
 	reactor_start(port, kvs_protocol);  //
@@ -447,9 +495,11 @@ int main(int argc, char* argv[]) {
 	ntyco_start(port, kvs_protocol);
 #endif
 
-    persist_close();
+	if (PERSIST_MODE == PERSIST_MODE_ENABLE) persist_close();
 
     dest_kvengine();
+#if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
+    mempool_destroy();
+#endif
 
 }
-

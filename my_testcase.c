@@ -6,11 +6,12 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#define BEGIN_TEST		1
+#define BEGIN_TEST		0
 
 #define MAX_MSG_LENGTH      1024
 
-#define TIME_SUB_MS(tv1, tv2)  ((tv1.tv_sec - tv2.tv_sec) * 1000 + (tv1.tv_usec - tv2.tv_usec) / 1000)
+#define TIME_SUB_MS(tv1, tv2) \
+	((long)(((tv1.tv_sec - tv2.tv_sec) * 1000000L + (tv1.tv_usec - tv2.tv_usec)) / 1000))
 
 
 int send_msg(int connfd, char *msg, int length) {
@@ -116,9 +117,12 @@ void array_testcase_1w(int connfd) {
 	struct timeval tv_end;
 	gettimeofday(&tv_end, NULL);
 
-	int time_used = TIME_SUB_MS(tv_end, tv_begin); // ms
+	int time_used = TIME_SUB_MS(tv_end, tv_begin);
+	int total_ops = count * 9;
 
-	printf("array testcase --> time_used: %d, qps: %d\n", time_used, 90000 * 1000 / time_used);
+	printf("array testcase --> time_used: %dms, total_ops: %d, qps: %d\n",
+		time_used, total_ops,
+		time_used > 0 ? total_ops * 1000 / time_used : 0);
 
 }
 
@@ -162,10 +166,13 @@ void rbtree_testcase_1w(int connfd) {
 	struct timeval tv_end;
 	gettimeofday(&tv_end, NULL);
 
-	int time_used = TIME_SUB_MS(tv_end, tv_begin); // ms
+	int time_used = TIME_SUB_MS(tv_end, tv_begin);
+	int total_ops = count * 9;
 
-	printf("rbtree testcase --> time_used: %d, qps: %d\n", time_used, 90000 * 1000 / time_used);
-	
+	printf("rbtree testcase --> time_used: %dms, total_ops: %d, qps: %d\n",
+		time_used, total_ops,
+		time_used > 0 ? total_ops * 1000 / time_used : 0);
+
 }
 
 void rbtree_testcase_3w(int connfd) {
@@ -206,9 +213,12 @@ void rbtree_testcase_3w(int connfd) {
 	struct timeval tv_end;
 	gettimeofday(&tv_end, NULL);
 
-	int time_used = TIME_SUB_MS(tv_end, tv_begin); // ms
+	int time_used = TIME_SUB_MS(tv_end, tv_begin);
+	int total_ops = count * 3;
 
-	printf("rbtree testcase --> time_used: %d, qps: %d\n", time_used, 30000 * 1000 / time_used);
+	printf("rbtree testcase --> time_used: %dms, total_ops: %d, qps: %d\n",
+		time_used, total_ops,
+		time_used > 0 ? total_ops * 1000 / time_used : 0);
 
 }
 
@@ -269,7 +279,11 @@ void skiptable_testcase_1w(int connfd) {
 
 	int time_used = TIME_SUB_MS(tv_end, tv_begin); // ms
 
-	printf("skiptable testcase --> time_used: %d, qps: %d\n", time_used, 90000 * 1000 / time_used);
+	int total_ops = count * 9;
+
+	printf("skiptable testcase --> time_used: %dms, total_ops: %d, qps: %d\n",
+		time_used, total_ops,
+		time_used > 0 ? total_ops * 1000 / time_used : 0);
 	
 }
 
@@ -279,7 +293,7 @@ void test_wal_1(int connfd) {
 	struct timeval tv_begin;
 	gettimeofday(&tv_begin, NULL);
 
-    int count = 30000;
+    int count = 100000;
     for (int i = 0; i < count; i++) {
         char cmd[256];
         char expected[256];
@@ -321,9 +335,12 @@ void test_wal_1(int connfd) {
 	struct timeval tv_end;
 	gettimeofday(&tv_end, NULL);
 
-	int time_used = TIME_SUB_MS(tv_end, tv_begin); // ms
+	int time_used = TIME_SUB_MS(tv_end, tv_begin);
+	int total_ops = count * 6;
 
-	printf("skiptable testcase --> time_used: %d, qps: %d\n", time_used, 180000 * 1000 / time_used);
+	printf("test_wal_1 --> time_used: %dms, total_ops: %d, qps: %d\n",
+		time_used, total_ops,
+		time_used > 0 ? total_ops * 1000 / time_used : 0);
 }
 
 void test_wal_2(int connfd) {

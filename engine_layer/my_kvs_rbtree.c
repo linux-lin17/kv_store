@@ -462,6 +462,8 @@ void kvs_rbtree_destory(kvs_rbtree_t *inst) {
 		rbtree_node *mini = rbtree_mini(inst, node);
 		
 		rbtree_node *cur = rbtree_delete(inst, mini);
+		kvs_free(cur->key);
+		kvs_free(cur->value);
 		kvs_free(cur);
 		
 	}
@@ -514,7 +516,9 @@ int kvs_rbtree_del(kvs_rbtree_t *inst, char *key) {
 	if (!node) return 1; // no exist
 	
 	rbtree_node *cur = rbtree_delete(inst, node);
-	free(cur);
+	kvs_free(cur->key);
+	kvs_free(cur->value);
+	kvs_free(cur);
 
 	return 0;
 }

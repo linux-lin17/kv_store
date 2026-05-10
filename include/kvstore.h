@@ -11,7 +11,7 @@
 #define NETWORK_PROACTOR	1
 #define NETWORK_NTYCO		2
 
-#define NETWORK_SELECT		NETWORK_NTYCO 
+#define NETWORK_SELECT		NETWORK_NTYCO
 
 #define ENABLE_ARRAY		1
 #define ENABLE_RBTREE		1
@@ -20,8 +20,26 @@
 
 #define KVS_MAX_TOKENS		128
 
+
+// ---------------------- 持久化模式 -----------------------
+
+#define	PERSIST_MODE_DISABLE  	7
+#define	PERSIST_MODE_ENABLE   	8
+
+#define PERSIST_MODE  PERSIST_MODE_DISABLE
+
+// ---------------------- 内存分配器选择 --------------------
+
+#define	MEM_ALLOC_MEMPOOL    	11 // 自定义内存池
+#define	MEM_ALLOC_RAW        	12 // 原生 malloc/free
+#define	MEM_ALLOC_JEMALLOC 		13  // jemalloc（待引入库）
+
+#define MEM_ALLOC_MODE  MEM_ALLOC_JEMALLOC
+
 void *kvs_malloc(size_t size);
 void kvs_free(void *ptr);
+
+// ---------------------------------------------------------
 
 // 遍历引擎 K-V 对的回调：每发现一个 key-value 就调用一次
 typedef void (*kvs_visit_func)(const char *key, const char *value, void *userdata);
