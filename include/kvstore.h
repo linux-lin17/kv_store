@@ -23,23 +23,29 @@
 
 // ---------------------- 持久化模式 -----------------------
 
-#define	PERSIST_MODE_DISABLE  	7
-#define	PERSIST_MODE_ENABLE   	8
+#define	PERSIST_MODE_DISABLE  	0
+#define	PERSIST_MODE_ENABLE   	1
 
-#define PERSIST_MODE  PERSIST_MODE_DISABLE
+#define PERSIST_MODE  PERSIST_MODE_ENABLE
 
 // ---------------------- 内存分配器选择 --------------------
 
 #define	MEM_ALLOC_MEMPOOL    	11 // 自定义内存池
 #define	MEM_ALLOC_RAW        	12 // 原生 malloc/free
-#define	MEM_ALLOC_JEMALLOC 		13  // jemalloc（待引入库）
+#define	MEM_ALLOC_JEMALLOC 		13  // jemalloc
 
-#define MEM_ALLOC_MODE  MEM_ALLOC_JEMALLOC
+#define MEM_ALLOC_MODE  MEM_ALLOC_RAW
 
 void *kvs_malloc(size_t size);
 void kvs_free(void *ptr);
 
-// ---------------------------------------------------------
+// ----------------- 批量向 wal log 写入的个数 --------------
+
+#define KVS_WAL_BATCH_SIZE  10
+
+
+// --------------------------------------------------------
+
 
 // 遍历引擎 K-V 对的回调：每发现一个 key-value 就调用一次
 typedef void (*kvs_visit_func)(const char *key, const char *value, void *userdata);

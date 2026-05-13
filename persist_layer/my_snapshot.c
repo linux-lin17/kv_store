@@ -24,7 +24,7 @@ extern kvs_hash_t global_hash;
 extern kvs_skiptable_t global_skiptable;
 #endif
 
-// 写回调：每遇到一个 K-V 对就写一行到 dump 文件   
+// 写回调：每遇到一个 K-V 对就写一行到 dump 文件  :   k-v ---> dump.rdb
 static void _dump_visitor(const char *key, const char *value, void *userdata) {
     FILE *fp = (FILE *)userdata;
     fprintf(fp, "%s %s\n", key, value);

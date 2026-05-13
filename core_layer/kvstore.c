@@ -11,6 +11,8 @@
 
 #include "my_protocol_parsing.h"
 
+
+
 #if ENABLE_ARRAY
 extern kvs_array_t global_array;
 #endif
@@ -47,6 +49,8 @@ void kvs_free(void *ptr) {
 	free(ptr);
 #endif
 }
+
+
 enum {
 	KVS_CMD_START = 0,
 	// array
@@ -106,15 +110,37 @@ int kvs_split_token(char *msg, char *tokens[]) {
 }
 #endif
 
+
+
+#define	PRINT_TO_CONSOLE	0
+
+#if PRINT_TO_CONSOLE
+	int all_count = 0;
+#endif
+
 static void wal_log(char *tokens[]) {
 	if (PERSIST_MODE == PERSIST_MODE_DISABLE) return;
-	char buf[1024] = {0};
+	char buf[1024] = {0};   // 每次调用 wal_log 的时候, 都清零
 	if (tokens[2]) {
 		snprintf(buf, sizeof(buf), "%s %s %s", tokens[0], tokens[1], tokens[2]);
 	} else {
 		snprintf(buf, sizeof(buf), "%s %s", tokens[0], tokens[1]);
 	}
-	persist_append_wal(buf);
+	
+	if (persist_append_wal_buffer(buf) == 0) {   //  ==0, 向 wal_log buffer 写入 ;  ==-1, 系统重放, 避免冲入写入 wal_log buffer
+		static int write_count = 0;
+		write_count++;
+		if (write_count >= KVS_WAL_BATCH_SIZE) {
+			persist_flush_wal();
+
+#if PRINT_TO_CONSOLE
+			all_count += write_count;
+			printf("now count : %d \n", all_count);
+#endif
+
+			write_count = 0;
+		}
+	}
 }
 
 int kvs_filter_protocol(char **tokens, int count, char *response) {

@@ -8,7 +8,8 @@
 #include <unistd.h>
 
 #define WAL_FILE "persist_layer/appendonly.wal"
-#define SNAPSHOT_INTERVAL_SEC 10
+
+#define SNAPSHOT_INTERVAL_SEC       10
 
 static FILE *wal_fp = NULL;
 
@@ -113,7 +114,7 @@ int persist_init(kvs_protocol_t kvs_protocol) {
         perror("[WAL] fopen");
         return -1;
     }
-    setvbuf(wal_fp, NULL, _IOLBF, 0);
+    setvbuf(wal_fp, NULL, _IOFBF, 0);
 
     // --- 第四步：启动快照定时器线程 ---
     snapshot_stop = 0;
@@ -125,13 +126,17 @@ int persist_init(kvs_protocol_t kvs_protocol) {
     return 0;
 }
 
-int persist_append_wal(const char *cmd) {
+int persist_append_wal_buffer(const char *cmd) {
     if (!wal_fp || !cmd || wal_replaying) return -1;
 
     fprintf(wal_fp, "%s\n", cmd);
-    fflush(wal_fp);
-
     return 0;
+}
+
+void persist_flush_wal(void) {
+    if (wal_fp) {
+        fflush(wal_fp);
+    }
 }
 
 void persist_close(void) {

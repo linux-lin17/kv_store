@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#define BEGIN_TEST		0
+#define BEGIN_TEST		1
 
 #define MAX_MSG_LENGTH      1024
 
@@ -355,7 +355,7 @@ void test_wal_3(int connfd) {
 
 	//testcase(connfd, "RGET Teacher", "Darren\r\n", "RGET-Darren-Teacher");
 	testcase(connfd, "STGET Teacher1024", "Darren1024\r\n", "STGET-Darren-Teacher[1024]");
-	testcase(connfd, "HGET Teacher5705", "Darren5705\r\n", "HGET-Darren-Teacher[5705]");
+	testcase(connfd, "HGET Teacher1717", "Darren1717\r\n", "HGET-Darren-Teacher[1717]");
 }
 
 
