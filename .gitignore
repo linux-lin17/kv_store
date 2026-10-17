@@ -1,4 +1,9 @@
 build/
 *.o
+*.a
 kvstore
 my_testcase
+compile_commands.json
+.vscode/
+persist_layer/appendonly.wal
+persist_layer/dump.rdb
