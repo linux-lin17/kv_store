@@ -14,28 +14,53 @@
 
 ## 🏗 架构设计
 
+```mermaid
+flowchart TB
+    CLIENT["客户端<br/>TCP 文本协议"] --> NET
+
+    subgraph NET["network_layer 网络层 · 宏 NETWORK_SELECT 切换"]
+        R["reactor<br/>epoll 事件驱动"]
+        P["proactor<br/>io_uring 异步 IO"]
+        CO["ntyco<br/>协程 · 共享栈"]
+    end
+
+    NET -->|"kvs_protocol(msg, len, resp)"| CORE
+
+    subgraph CORE["core_layer 核心层"]
+        D["命令分发 / 协议过滤"]
+        W["WAL 写入"]
+        L["快照锁协调"]
+    end
+
+    CORE --> ENG
+    CORE --> PER
+    CORE --> MEM
+
+    subgraph ENG["engine_layer 引擎层 · 宏开关切换"]
+        A["array<br/>O(n)"]
+        RB["rbtree<br/>O(log n)"]
+        HA["hash<br/>O(1)"]
+        SK["skiplist<br/>O(log n)"]
+    end
+
+    subgraph PER["persist_layer 持久化层"]
+        WAL["WAL 增量日志<br/>批量刷盘 · 崩溃重放"]
+        SNAP["dump 快照<br/>全量持久化 · 恢复"]
+    end
+
+    subgraph MEM["memory_layer 内存层"]
+        SLAB["slab 内存池<br/>4 级 class · O(1) 归还"]
+        ALLOC["可插拔分配器<br/>mempool / malloc / jemalloc"]
+    end
 ```
-                ┌──────────────────────────────────────────┐
-  Client ─────► │  network_layer(reactor / proactor / 协程) │
- (TCP 文本协议)  │  宏 NETWORK_SELECT 切换                    │
-                └──────────────────┬───────────────────────┘
-                                   │ kvs_protocol(msg, len, resp)
-                ┌──────────────────▼───────────────────────┐
-                │  core_layer(kvstore.c)                   │
-                │  命令分发 · WAL 写入 · 快照锁协调            │
-                └───┬──────────┬──────────┬──────────┬─────┘
-                    │          │          │          │
-             ┌──────▼───┐ ┌────▼─────┐ ┌──▼──────┐ ┌─▼────────┐
-             │ array    │ │ rbtree   │ │ hash    │ │ skiplist │
-             │ O(n)     │ │ O(log n) │ │ O(1)    │ │ O(log n) │
-             └──────────┘ └──────────┘ └─────────┘ └──────────┘
-                                 │
-                  ┌──────────────┼─────────────────┐
-           ┌──────▼──────┐ ┌─────▼──────┐ ┌────────▼───────┐
-           │ WAL 批量刷盘 │ │ dump 快照   │ │ slab 内存池     │
-           │ + 崩溃重放   │ │ + 全量恢复  │ │ + 可插拔分配器  │
-           └─────────────┘ └────────────┘ └────────────────┘
-```
+
+**一次写请求的处理路径**
+
+1. 客户端发送 `SET key value` → 网络层收到数据并回调 `kvs_protocol`
+2. 核心层解析命令、匹配引擎,写操作前加持久化锁
+3. 执行引擎写入(数组 / 红黑树 / 哈希 / 跳表)
+4. 写成功后把命令追加进 WAL 缓冲,攒够 `KVS_WAL_BATCH_SIZE` 条统一刷盘
+5. 释放锁,向客户端返回 `OK`
 
 ## 📁 目录结构
 
