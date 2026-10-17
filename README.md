@@ -16,42 +16,16 @@
 
 ```mermaid
 flowchart TB
-    CLIENT["客户端<br/>TCP 文本协议"] --> NET
+    C["客户端<br/>TCP 文本协议"]
+    N["network_layer 网络层<br/>reactor (epoll) · proactor (io_uring) · ntyco (协程)"]
+    K["core_layer 核心层<br/>命令分发 · WAL 写入 · 快照锁协调"]
+    E["engine_layer 引擎层 · 宏开关切换<br/>array O(n) · rbtree O(log n) · hash O(1) · skiplist O(log n)"]
+    P["persist_layer 持久化层<br/>WAL 批量刷盘 + 崩溃重放<br/>dump 快照 + 全量恢复"]
+    M["memory_layer 内存层<br/>slab 内存池 · 可插拔分配器"]
 
-    subgraph NET["network_layer 网络层 · 宏 NETWORK_SELECT 切换"]
-        R["reactor<br/>epoll 事件驱动"]
-        P["proactor<br/>io_uring 异步 IO"]
-        CO["ntyco<br/>协程 · 共享栈"]
-    end
-
-    NET -->|"kvs_protocol(msg, len, resp)"| CORE
-
-    subgraph CORE["core_layer 核心层"]
-        D["命令分发 / 协议过滤"]
-        W["WAL 写入"]
-        L["快照锁协调"]
-    end
-
-    CORE --> ENG
-    CORE --> PER
-    CORE --> MEM
-
-    subgraph ENG["engine_layer 引擎层 · 宏开关切换"]
-        A["array<br/>O(n)"]
-        RB["rbtree<br/>O(log n)"]
-        HA["hash<br/>O(1)"]
-        SK["skiplist<br/>O(log n)"]
-    end
-
-    subgraph PER["persist_layer 持久化层"]
-        WAL["WAL 增量日志<br/>批量刷盘 · 崩溃重放"]
-        SNAP["dump 快照<br/>全量持久化 · 恢复"]
-    end
-
-    subgraph MEM["memory_layer 内存层"]
-        SLAB["slab 内存池<br/>4 级 class · O(1) 归还"]
-        ALLOC["可插拔分配器<br/>mempool / malloc / jemalloc"]
-    end
+    C --> N --> K --> E
+    K --> P
+    K --> M
 ```
 
 **一次写请求的处理路径**
