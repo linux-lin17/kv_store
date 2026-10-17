@@ -98,7 +98,7 @@ flowchart TB
 
 - Linux，GCC、GNU Make。
 - `liburing` 开发库：编译 io_uring 网络实现。
-- `jemalloc` 开发库：当前 Makefile 的链接依赖。
+- `jemalloc` 开发库：可选，仅分配器对比实验的 jemalloc 档（`make MEM_MODE=jemalloc`）需要。
 - pthread、libdl；NtyCo 源码已包含在仓库中。
 - Python 3：仅用于下方可选的交互演示。
 
@@ -106,10 +106,12 @@ Ubuntu / Debian 可使用以下命令安装依赖：
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential git liburing-dev libjemalloc-dev python3
+sudo apt install -y build-essential git liburing-dev python3
+# 如需 jemalloc 对比档，再安装：
+sudo apt install -y libjemalloc-dev
 ```
 
-当前 Makefile 会编译三种网络实现并链接相关库，即使只选择其中一种运行，也需要安装上述构建依赖。使用 Proactor 模式时，运行环境还需要支持并允许相应的 io_uring 操作。
+当前 Makefile 会编译三种网络实现并链接相关库（jemalloc 为可选项），即使只选择其中一种运行，也需要安装上述构建依赖。使用 Proactor 模式时，运行环境还需要支持并允许相应的 io_uring 操作。
 
 ### 编译与启动
 
@@ -185,8 +187,8 @@ PY
 | 配置项 | 当前默认值 | 说明 |
 | --- | --- | --- |
 | `NETWORK_SELECT` | `NETWORK_NTYCO` | 可选择 `NETWORK_REACTOR`、`NETWORK_PROACTOR`、`NETWORK_NTYCO` |
-| `PERSIST_MODE` | `PERSIST_MODE_ENABLE` | 是否启用日志、快照和恢复流程 |
-| `MEM_ALLOC_MODE` | `MEM_ALLOC_RAW` | 分配封装的编译分支：`MEM_ALLOC_MEMPOOL`、`MEM_ALLOC_RAW`、`MEM_ALLOC_JEMALLOC` |
+| `PERSIST_MODE` | `PERSIST_MODE_DISABLE` | 是否启用日志、快照和恢复流程 |
+| `MEM_ALLOC_MODE` | `MEM_ALLOC_MEMPOOL` | 分配封装的编译分支：`MEM_ALLOC_MEMPOOL`、`MEM_ALLOC_RAW`、`MEM_ALLOC_JEMALLOC`。make 会自动读取此宏（jemalloc 档自动链接 `-ljemalloc`）；也可临时用 `make MEM_MODE=raw\|jemalloc\|mempool` 覆盖 |
 | `ENABLE_ARRAY` | `1` | 数组引擎声明与核心调用开关 |
 | `ENABLE_RBTREE` | `1` | 红黑树引擎声明与核心调用开关 |
 | `ENABLE_HASH` | `1` | 哈希表引擎声明与核心调用开关 |
@@ -196,15 +198,24 @@ PY
 其他参数包括：数组容量 `KVS_ARRAY_SIZE = 1024`、哈希桶数 `MAX_TABLE_SIZE = 1024`、跳表最高层号 `MAX_LEVEL = 6`。快照间隔 `SNAPSHOT_INTERVAL_SEC = 10` 位于 `persist_layer/my_wal.c`。
 
 ```bash
-# 修改配置后重新构建；当前 Makefile 没有自动跟踪头文件依赖
-make clean
+# 修改配置后直接重新构建即可：
+# Makefile 已自动跟踪头文件依赖（-MMD）与编译开关（FLAG_STAMP），无需 make clean；
+# 需要完全重编时再手动 make clean
 make
 ```
 
 配置有两点需要配合构建规则使用：
 
 - **引擎裁剪**：引擎源文件仍全部列在 `COMMON_SRCS` 中。关闭某个 `ENABLE_*` 时，还需同步移除对应源文件或完善条件编译，不能只修改宏就假定可以完成裁剪。
-- **分配器对比**：`RAW` 与 `JEMALLOC` 分支当前都调用 `malloc/free`，而 Makefile 无条件链接 `-ljemalloc`。仅修改宏不能保证切换到两个不同的实际分配器；进行性能对比前需要调整链接配置并验证符号绑定。
+- **分配器对比**：分配器选择就在 `kvstore.h` 的 `MEM_ALLOC_MODE` 中完成，make 会自动读取——选中 `MEM_ALLOC_JEMALLOC` 时自动链接 `-ljemalloc`，其余两档不链。`RAW` 与 `JEMALLOC` 分支代码相同（都是裸 `malloc/free`），真正的分配器差异来自是否链接 `-ljemalloc`：链接后 jemalloc 通过符号抢占接管进程内全部 `malloc/free`，不链接则是 glibc。三档对应关系：
+
+  | `MEM_ALLOC_MODE` 选择 | 实际 malloc 实现 |
+  | --- | --- |
+  | `MEM_ALLOC_RAW` | glibc |
+  | `MEM_ALLOC_JEMALLOC` | jemalloc（自动链接） |
+  | `MEM_ALLOC_MEMPOOL` | 自写 slab 池（页来自 glibc） |
+
+  也可临时用 `make MEM_MODE=raw|jemalloc|mempool` 覆盖头文件（`bench_alloc.sh` 即用此方式）。jemalloc 构建启动时会通过 `mallctl` 打印版本号自证；启动时带 `JEMALLOC_STATS=1` 则在 Ctrl+C 退出时打印完整运行统计（输出较多，建议重定向）。一键实验：`./bench_alloc.sh [PORT] [RUNS]`，每轮重启服务端，结果与汇总写入 `bench_results/`。
 
 ## 实现要点
 
@@ -346,11 +357,11 @@ kv_store/
 - [ ] 增加日志错误检查、同步策略、快照原子替换及失败时保留日志的机制，并进行故障注入测试。
 - [ ] 完善连接表容量管理、文件描述符越界检查、网络错误处理与协程参数生命周期。
 - [ ] 补充退出信号处理，使日志收尾与资源清理能够在正常停机时执行。
-- [ ] 完善引擎裁剪、分配器链接切换、头文件依赖和并行构建规则。
-- [ ] 增加自动化回归、内存检查、多连接压测和可复现的性能对比记录。
+- [ ] 完善引擎裁剪、头文件依赖和并行构建规则。
+- [ ] 增加自动化回归、内存检查和多连接压测；单连接分配器对比实验已由 `bench_alloc.sh` 支持。
 
 ## 第三方组件
 
 协程运行库来自 [wangbojing/NtyCo](https://github.com/wangbojing/NtyCo)，本项目保留在 `NtyCo/` 目录中，负责集成其调度与 socket hook 能力。目录中的 HTTP、MySQL、Redis 等示例属于第三方库示例，不代表 KVStore 已实现相应功能。
 
-io_uring 用户态接口使用 liburing；当前构建链接 jemalloc。第三方组件的作者信息与版权声明见对应源码。
+io_uring 用户态接口使用 liburing；构建可选链接 jemalloc（`make MEM_MODE=jemalloc`）。第三方组件的作者信息与版权声明见对应源码。

@@ -1,0 +1,15 @@
+Run 1
+skiptable_testcase_1w 
+skiptable testcase --> time_used: 11082ms, total_ops: 90000, qps: 8121
+Run 2
+skiptable_testcase_1w 
+skiptable testcase --> time_used: 9970ms, total_ops: 90000, qps: 9027
+Run 3
+skiptable_testcase_1w 
+skiptable testcase --> time_used: 13813ms, total_ops: 90000, qps: 6515
+Run 4
+skiptable_testcase_1w 
+skiptable testcase --> time_used: 22052ms, total_ops: 90000, qps: 4081
+Run 5
+skiptable_testcase_1w 
+skiptable testcase --> time_used: 23575ms, total_ops: 90000, qps: 3817

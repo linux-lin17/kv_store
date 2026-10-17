@@ -7,3 +7,4 @@ compile_commands.json
 .vscode/
 persist_layer/appendonly.wal
 persist_layer/dump.rdb
+bench_results/

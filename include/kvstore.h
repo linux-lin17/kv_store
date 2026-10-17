@@ -7,26 +7,34 @@
 #include <assert.h>
 #include <stddef.h>
 
+// ---------------------- 网络协议 -----------------------
 #define NETWORK_REACTOR 	0
 #define NETWORK_PROACTOR	1
 #define NETWORK_NTYCO		2
 
 #define NETWORK_SELECT		NETWORK_NTYCO
 
+// ---------------------- 存储引擎 -----------------------
+
 #define ENABLE_ARRAY		1
 #define ENABLE_RBTREE		1
 #define ENABLE_HASH			1
 #define ENABLE_SKIPTABLE	1
 
+// -------------------------------------------------------
+
+// ---------------------- 最大token -----------------------
+
 #define KVS_MAX_TOKENS		128
 
+// -------------------------------------------------------
 
 // ---------------------- 持久化模式 -----------------------
 
 #define	PERSIST_MODE_DISABLE  	0
 #define	PERSIST_MODE_ENABLE   	1
 
-#define PERSIST_MODE  PERSIST_MODE_ENABLE
+#define PERSIST_MODE  PERSIST_MODE_DISABLE
 
 // ---------------------- 内存分配器选择 --------------------
 
@@ -34,7 +42,11 @@
 #define	MEM_ALLOC_RAW        	12 // 原生 malloc/free
 #define	MEM_ALLOC_JEMALLOC 		13  // jemalloc
 
-#define MEM_ALLOC_MODE  MEM_ALLOC_RAW
+// 分配器在此选择：make 会自动读取本文件（选中 jemalloc 时自动链接 -ljemalloc）。
+// 也可临时用 make MEM_MODE=raw|jemalloc|mempool 覆盖。
+#ifndef MEM_ALLOC_MODE
+#define MEM_ALLOC_MODE  MEM_ALLOC_JEMALLOC  
+#endif
 
 void *kvs_malloc(size_t size);
 void kvs_free(void *ptr);

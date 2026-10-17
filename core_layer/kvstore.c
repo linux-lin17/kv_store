@@ -8,6 +8,16 @@
 #include "mempool.h"
 #endif
 
+#if defined(USE_JEMALLOC)
+#include <jemalloc/jemalloc.h>
+#include <signal.h>
+#include <unistd.h>
+#endif
+
+#if MEM_ALLOC_MODE == MEM_ALLOC_JEMALLOC && !defined(USE_JEMALLOC)
+#error "MEM_ALLOC_JEMALLOC 需要链接 jemalloc：请确认 kvstore.h 中该宏为标准写法，或使用 make MEM_MODE=jemalloc"
+#endif
+
 
 #include "my_protocol_parsing.h"
 
@@ -492,6 +502,18 @@ void dest_kvengine(void) {
 
 
 
+#ifdef USE_JEMALLOC
+// Ctrl+C 默认安静退出；带 JEMALLOC_STATS=1 启动时才打印 jemalloc 完整统计
+//（输出较多，建议重定向到文件；bench_alloc.sh 已捕获到日志）
+static void sigint_dump_stats(int sig) {
+    if (getenv("JEMALLOC_STATS")) {
+        malloc_stats_print(NULL, NULL, "g");
+    }
+    _exit(0);
+}
+#endif
+
+
 int main(int argc, char* argv[]) {
 
     if (argc != 2) return -1;
@@ -501,6 +523,7 @@ int main(int argc, char* argv[]) {
 #if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
     mempool_init();
 #endif
+
     init_kvengine();
 
 #if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
@@ -510,6 +533,21 @@ int main(int argc, char* argv[]) {
 #elif MEM_ALLOC_MODE == MEM_ALLOC_JEMALLOC
     printf("memory allocator: MEM_ALLOC_JEMALLOC\n");
 #endif
+
+#ifdef USE_JEMALLOC
+    {
+        const char *ver = NULL;
+        size_t len = sizeof(ver);
+        if (mallctl("version", &ver, &len, NULL, 0) == 0 && ver) {
+            printf("jemalloc version: %s (malloc 已被 jemalloc 接管)\n", ver);
+        }
+        printf("提示: Ctrl+C 默认安静退出；启动时带 JEMALLOC_STATS=1 才打印统计\n");
+        signal(SIGINT, sigint_dump_stats);
+    }
+#else
+    printf("malloc backend: glibc (未链接 jemalloc)\n");
+#endif
+    fflush(stdout);   // 日志重定向到文件时 stdout 是块缓冲，主动刷出横幅
 
 	if (PERSIST_MODE == PERSIST_MODE_ENABLE) persist_init(kvs_protocol);
 
@@ -524,6 +562,7 @@ int main(int argc, char* argv[]) {
 	if (PERSIST_MODE == PERSIST_MODE_ENABLE) persist_close();
 
     dest_kvengine();
+	
 #if MEM_ALLOC_MODE == MEM_ALLOC_MEMPOOL
     mempool_destroy();
 #endif

@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#define BEGIN_TEST		1
+#define BEGIN_TEST		0
 
 #define MAX_MSG_LENGTH      1024
 
